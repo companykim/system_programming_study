@@ -145,4 +145,391 @@
     * sig: 시그널 핸들러로 처리하려는 시그널
     * disp: 시그널 핸들러의 함수명
     ------------------------------------
-    
+    sigset() 함수도 첫번째 인자인 sig에 SIGKILL과 SIGSTOP 시그널을 제외한 어떤 시그널이든 지정할 수 있다. 두번째 인자인 disp에도 signal() 함수처럼 시그널 핸들러 함수의 주소나 SIG_IGN, SIG_DFL 중 하나를 지정해야 한다.
+    단, 리눅스에서는 sigset() 함수를 제공하지만 사용을 권하지 않는다.
+
+  ## 4. 시그널 집합
+
+    POSIX 표준에서 시그널과 관련해 정의한 함수 중 상당수는 시그널을 개별적으로 처리하지 않고 복수의 시그널을 처리할 수 있게 한다. </br>
+    POSIX에서 복수의 시그널을 처리하기 위해 도입한 것이 시그널 집합이다.
+
+    ### 시그널 집합의 개념
+    시그널 집합은 시그널을 비트 마스크로 표현한 것. 시그널 하나가 비트 하나를 가리킨다.
+    각 비트가 특정 시그널과 1:1로 연결되어 있다. 비트 값이 1이면 해당 시그널이 설정된 것이다.
+    시그널 집합의 처리를 위해 sigset_t라는 구조체를 제공한다. 리눅스에서는 sigset_t 구조체에 unsigned long 배열이 요소로 있다.
+    typedef struct {
+      unsigned long __val[NSIG_WORDS];
+    } sigset_t;
+
+    ### 시그널 집합 처리 함수
+
+    sigemptyset(): 시그널 집합 비우기
+    ------------------------------------
+    #include <signal.h>
+
+    int sigfillset(sigset_t *set);
+
+    * set: 설정하려는 시그널 집합의 주소
+    ------------------------------------
+    시스템에서 정의한 모든 시그널을 배제해 인자로 지정한 시그넝 집합을 빈 집합으로 만든다. 즉, 시그널 집합의 모든 비트를 0으로 설정한다.
+
+    sigfillset(): 시그널 집합에 모든 시그널 설정
+    ------------------------------------
+    #include <signal.h>
+
+    int sigfillset(sigset_t *set);
+
+    * set: 설정하려는 시그널 집합의 주소
+    ------------------------------------
+    인자로 받은 시그널 집합을 시스템에서 정의한 모든 시그널을 포함하는 집합으로 만든다. 즉, 시그널 집합의 모든 비트를 1로 설정한다.
+
+    sigaddset(): 시그널 집합에 시그널 설정 추가
+    ------------------------------------
+    #include <signal.h>
+
+    int sigaddset(sigset_t *set, int signum);
+
+    * set: 시그널을 추가하려는 시그널 집합의 주소
+    * signum: 시그널 집합에 추가로 설정하려는 시그널
+    ------------------------------------
+    signum으로 지정한 시그널을 set으로 지정한 시그널 집합에 추가한다.
+
+    sigdelset(): 시그널 집합에 시그널 설정 삭제
+    ------------------------------------
+    #include <signal.h>
+
+    int sigdelset(sigset_t *set, int signum);
+
+    * set: 시그널을 삭제하려는 시그널 집합의 주소
+    * signum: 시그널 집합에서 삭제하려는 시그널
+    ------------------------------------
+    signum으로 지정한 시그널을 set으로 지정한 시그널 집합에서 제거한다.
+
+    sigismember(): 시그널 집합에 설정된 시그널 확인
+    ------------------------------------
+    #include <signal.h>
+
+    int sigismember(const sigset_t *set, int signum);
+
+    * set: 확인하려는 시그널 집합의 주소
+    * signum: 시그널 집합에 설정되었는지 확인하려는 시그널
+    ------------------------------------
+    signum으로 지정한 시그널이 set으로 지정한 시그널 집합에 포함되어 있으면 1을, 아니면 0을 리턴함.
+
+  ### 5. sigaction() 함수의 활용
+
+    sigaction() 함수는 signal() 함수나 sigset() 함수처럼 시그널을 받았을 때 이를 처리할 수 있는 함수를 지정할 수 있다.
+    signal() 함수와 sigset() 함수가 단순히 시그널 핸들러만 지정할 수 있는 것과 달리 sigaction() 함수는 훨씬 다양하게 시그널을 제어할 수 있다.
+
+    ### sigaction 구조체
+     sigaction 구조체의 멤버는 시그널 처리를 위한 시그널 핸들러 주소, 시그널 핸들러가 수행하는 동안 블로킹될 시그널, 추가 기능을 설정할 수 있는 플래그로 구성된다.
+
+     struct sigaction {
+       void(*sa_handler)(int);
+       void(*sa_sigaction)(int, siginfo_t *, void *);
+       sigset_t sa_mask;
+       int sa_flags;
+       void(*sa_restorer)(void);
+     };
+     
+     sa_handler와 sa_sigaction은 시그널을 처리할 동작을 지정한다. 일부 시스템의 경우 다음과 같이 sigaction 구조체에서 sa_handler와 sa_sigaction이 공용체로 정의되어
+     메모리가 중첩되므로 둘 중 하나만 값을 설정하도록 한다.
+     struct sigaction {
+       int sa_flags;
+       union {
+         void (*sa_handler)();
+         void (*sa_sigaction)(int, siginfo_t *, void *);
+       } __funcptr;
+       sigset_t sa_mask;
+     };
+     만일 sa_flags에 SA_SIGINFO가 설정되어 있지 않으면 sa_handler에는 시그널을 처리할 동작을 지정한다. sa_flags에 SA_SIGINFO가 설정되어 있으면 sa_sigaction 멤버를 사용한다.
+
+     ### sa_mask
+     sa_mask에는 시그널 핸들러가 동작 중일 때 블로킹할 시그널을 시그널 집합으로 지정한다. 
+     시그널 핸들러가 시작되어 시그널을 전달할 때 이미 블로킹된 시그널 집합에 sa_mask로 지정한 시그널 집합을 추가한다.
+     sa_flags에 SA_NODEFER를 설정하지 않으면 시그널 핸들러를 호출하게 한 시그널도 블로킹된다.
+
+     ### sa_flags
+     sa_flags에는 시그널 전달 방법을 수정할 플래그를 지정한다. 
+     SA_NOCLDSTOP: 이 값이 설정되어 있고 signum이 SIGCHLD라면 자식 프로세스를 중지하거나 재시작할 때 부모 프로세스에 전달하지 않는다.
+     SA_NOCLDWAIT: 이 값이 설정되어 있고 시그널이 SIGCHLD라면 시스템은 자식 프로세스를 종료할 때 좀비 프로세스로 만들지 않는다.
+     SA_NODEFER: 만약 이 값을 설정하고 시그널을 받으면 시그널 핸들러가 처리하는 동안 해당 시그널은 시스템 커널에 의해 자동으로 블로킹되지 않는다.
+     SA_ONSTACK: sigaltstack() 시스템 호출로 생성한 대체 시그널 스택에 있는 시그널 핸들러를 호출한다. 만약 대체 스택이 없으면 기본 스택이 사용된다. 이 값은 시그널 핸들러가 설정되어 있는 경우에만 유효하다.
+     SA_RESETHAND: 시그널의 기본 처리 방법은 SIG_DFL로 재설정된다.
+     SA_RESTART: 이 플래그는 BSD 형식으로 시그널 처리를 하도록 하여 시그널 처리와 관련된 시스템 호출을 재시작하게 한다.
+     SA_SIGINFO: 이 플래그가 설정되어 있으면 시그널 핸들러는 인자를 3개 받는다. 이 경우 sa_sigaction을 사용해야 한다.
+
+     ### sigaction 함수
+     시그널을 받아 이를 처리할 시그널 핸들러를 지정할 뿐만 아니라 플래그를 설정해 시그널을 처리하는 과정을 제어할 수도 있고 시그널 핸들러가 수행되는 동안 다른 시그널을 블로킹할 수도 있다.
+     ------------------------------------
+     #include <signal.h>
+
+     int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
+
+     * signum: 처리할 시그널
+     * act: 시그널을 처리할 방법을 지정한 구조체 주소
+     * oldact: 기존에 시그널을 처리하던 방법을 저장할 구조체 주소
+     ------------------------------------
+     signum에 지정한 시그널을 받았을 때 처리할 방법을 sigaction 구조체인 act로 받는다.
+     첫번재 인자로 SIGKILL과 SIGSTOP 시그널을 제외한 어떤 시그널도 사용할 수 있다.
+     두번째와 세번째 인자는 sigaction 구조체를 사용해 지정한다. 두번째 인자에는 NULL 또는 signum에 지정된 시그널을 받았을 때 처리할 방법을 지정한 구조체 주소를 저장한다.
+     세번째 인자에는 NULL 또는 기존 처리 방법을 저장한다.
+
+     ### 시그널 발생 원인 검색
+     sa_flags에 SA_SIGINFO 플래그를 지정하면 시그널이 발생한 원인을 알 수 있다.
+     ------------------------------------
+     void handler(int sig, siginfo_t *info, void *ucontext) {
+       ...
+      }
+
+      * sig: 시그널 핸들러를 호출할 시그널
+      * info: 시그널이 발생한 원인을 담은 siginfo_t 구조체 포인터
+      * ucontext: 시그널이 전달될 때 시그널을 받는 프로세스의 내부 상태를 나타내는 ucontext 구조체 포인터
+     ------------------------------------
+     ucontext_t는 프로세스의 내부 상태를 나타내는 구조체다.
+
+     siginfo_t 구조체
+     typedef struct {
+       int si_signo; 관련된 시그널 번호
+       int si_errno; 0 또는 시그널과 관련된 오류 번호
+       int si_code; 시그널 발생 원인을 정의하는 코드
+       union {
+         int si_trapno;
+         pid_t si_pid;
+         uid_t si_uid;
+         int si_status;
+         clock_t si_utime;
+         clock_t si_stime;
+         sigval_t si_value;
+         int si_int;
+         void *si_ptr;
+         int si_overrun;
+         int si_timerid;
+         void *si_addr;
+         long si_band;
+         int si_fd;
+         short si_addr_lsb;
+         void *si_lower;
+         void *si_upper;
+         int si_pkey;
+         void *si_call_addr;
+         int si_syscall;
+         unsigned int si_arch;
+       }
+     } siginfo_t;
+
+     ### 사용자 프로세스에 의한 시그널 발생 원인 코드
+     si_code의 값이 0과 같거나 작다면 사용자 프로세스가 kill(), raise(), abort() 등의 함수로 시그널을 생성한 값이다.
+
+     SI_USER 값: 0 kill() 또는 raise() 함수로 시그널을 보냄
+     SI_KERNEL 값: 0x80(128) 커널이 시그널을 보냄
+     SI_QUEUE 값: -1 sigqueue() 함수로 시그널을 보냄
+     SI_TIMER 값: -2 timer_settime() 함수가 생성한 타이머가 만료되어 시그널을 보냄
+     SI_MESGQ 값: -3 POSIX 메시지 큐의 상태가 변해서 시그널을 보냄
+     SI_ASYNCIO 값: -4 비동기 입출력이 완료되어 시그널을 보냄
+     SI_SIGIO 값: -5 SIGIO 시그널이 큐에 들어와서 시그널을 보냄
+
+     psiginfo(): 시그널 발생 원인 출력 함수
+     ------------------------------------
+     #include <signal.h>
+
+     void psiginfo(const siginfo_t *pinfo, const char *s);
+
+     * pinfo: 시그널 발생 원인에 관한 정보를 저장하고 있는 구조체 포인터
+     * s: 출력할 문자열
+     ------------------------------------
+     siginfo_t 구조체 포인터를 인자로 받아 시그널이 발생한 원인을 표준 오류로 출력한다.
+     첫번째 인자인 pinfo에는 시그널 핸들러의 두번째 인자로 받은 siginfo_t 구조체의 주소를 지정한다. 
+     함수를 실행하면 두번째 인자인 s에 지정한 문자열이 먼저 출력되고 시그널 정보가 출력된다.
+
+  ## 6. 알람 시그널
+  일정 시간이 지난 후에 자동으로 시그널이 발생하게 하려면 알람 시그널을 사용한다. </br>
+  알람 시그널은 일정 시간이 지난 후에 한 번 발생시킬 수도 있고 일정한 간격을 두고 주기적으로 발생시킬 수도 있다.
+
+    ### 알람 시그널 함수
+
+    alarm(): 알람 시그널 생성
+    ------------------------------------
+    #include <unistd.h>
+
+    unsigned int alarm(unsigned int seconds);
+
+    * seconds: 알람을 발생시킬 때까지 남은 시간(초 단위)
+    ------------------------------------
+    alarm() 함수는 인자로 초 단위 시간을 받는다. 인자로 지정한 시간이 지나면 SIGALRM 시그널이 생성되어 프로세스에 전달된다.
+    프로세스 별로 알람시계가 하나밖에 없으므로 알람은 하나만 설정할 수 있다. 따라서 알람 시그널을 생성하기 전에 다시 alarm() 함수를 호출하면 이전 설정은 없어지고 재설정된다.
+
+    ### 인터벌 타이머
+    알람 시그널은 정해진 시간에 한번 시그널을 보낸다. 이를 좀 더 개선해 일정 시간 간격을 두고 타이머 역할을 하도록 할 수 있다.
+
+    타이머의 종류
+    타이머는 3개인데, 각 타이머가 사용하는 시간 유형에 따라 각기 다른 시그널이 생성된다.
+
+    ITIMER_REAL: 실제 시간을 사용한다. 이 타이머가 만료되면 SIGALRM 시그널이 생성된다.
+    ITIMER_VIRTUAL: 프로세스가 사용하는 사용자 모드 CPU 시간을 사용한다. 이 시간은 프로세스가 동작 중일 때만 작동하며, 만료되면 SIGVTALRM 시그널이 생성된다.
+    ITIMER_PROF: 프로세스가 사용하는 시스템 모드와 사용자 모드 CPU 시간을 합해 사용한다. 이 타이머가 만료되면 SIGPROF 시그널이 생성된다. 
+    ITIMER_VIRTUAL과 함께 사용하면 프로세스 사용한 사용자 모드 CPU 시간과 시스템 모드 CPU 시간을 알 수 있다.
+
+    getitimer(): 타이머 정보 검색
+    ------------------------------------
+    #include <sys/time.h>
+
+    int getitimer(int which, struct itimerval *curr_value);
+
+    * which: 검색할 타이머의 종류
+    * curr_value: 타이머 정보를 저장할 구조체 포인터
+    ------------------------------------
+    getitimer() 함수는 타이머 정보를 검색하는 함수이며, which에는 검색할 타이머의 종류를 지정하고, curr_value에는 타이머의 현재 시간과 타이머 간격 정보를 저장할 itimerval 구조체 포인터로 지정한다.
+    struct itimerval {
+      struct timeval it_interval;
+      struct timeval it_value;
+    };
+    it_interval에는 타이머의 간격 정보가 저장됨. it_value에는 타이머가 만료될 때까지 남은 시간이 저장됨. it_value의 값이 0이면 타이머 기능이 멈춘다.
+    it_interval의 값이 0이면 다음에 타이머가 만료될 때까지 타이머 기능이 멈춘다.
+    struct timeval {
+      time_t tv_sec;
+      suseconds_t tv_usec;
+    };
+    timeval 구조체에는 초와 마이크로초 단위로 시간을 저장한다.
+
+    setitimer(): 타이머 설정
+    ------------------------------------
+    #include <sys/time.h>
+
+    int setitimer(int which, const struct itimerval *value, struct itimerval *ovalue);
+
+    * which: 설정할 타이머의 종류
+    * value: 설정할 타이머의 정보를 저장한 구조체 포인터
+    * ovalue: 이전 타이머의 정보를 저장할 구조체 포인터
+    ------------------------------------
+    setitimer()는 타이머를 설정하는 함수, which에는 설정할 타이머의 종류를 지정하고 value에는 설정할 타이머 정보를 저장해 인터벌 타이머를 설정한다. ovalue는 NULL 또는 이전 설정값을 저장한다.
+
+  ## 7. 기타 시그널 처리 함수
+    리눅스에서는 시그널 정보를 출력하거나, 시그널이 올 때까지 기다리거나, 시그널을 보내는 등의 시그널 처리를 위한 기타 함수를 제공한다.
+
+    ### 시그널 정보 출력
+
+    psignal(): 시그널 정보 출력
+    ------------------------------------
+    #include <signal.h>
+
+    void psignal(int sig, const char *s);
+
+    * sig: 정보를 출력할 시그널
+    * s: 출력할 문자열
+    ------------------------------------
+    psignal() 함수는 두 번째 인자인 s로 지정한 문자열을 출력한 후 첫 번째 인자인 sig로 지정한 시그널을 가리키는 이름을 붙여 표준 오류로 출력한다.
+
+    strsignal(): 시그널 정보 출력
+    ------------------------------------
+    #include <string.h>
+
+    char *strsignal(int sig);
+
+    * sig: 정보를 출력할 시그널
+    ------------------------------------
+    인자로 받은 시그널을 가리키는 이름을 문자열로 리턴한다.
+
+    ### 시그널 블로킹과 해제
+    시그널 블로킹 함수를 사용하면 프로세스가 동작하는 동안에 특정 시그널을 받지 않도록 블로킹하거나 해제할 수 있다.
+
+    sighold(), sigrelse(): 시그널 블로킹과 해제
+    ------------------------------------
+    #include <signal.h>
+
+    int sighold(int sig);
+    int sigrelse(int sig);
+
+    * sig: 블로킹하거나 해제할 시그널
+    ------------------------------------
+    sighold() 함수는 인자로 받은 시그널을 프로세스의 시그널 마스크에 추가한다. 시그널 마스크에 추가된 시그널은 블로킹되어 해당 시그널을 받지 않는다.
+    sigrelse() 함수는 프로세스의 시그널 마스크에서 시그널을 해제한다.
+
+    sigprocmask(): 시그널 집합 블로킹과 해제
+    ------------------------------------
+    #include <signal.h>
+
+    int sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+
+    * how: 시그널을 블로킹할 것인지 해제할 것인지 여부
+    * set: 블로킹하거나 해제할 시그널 집합의 주소
+    * oldset: NULL 또는 이전 설정값을 저장할 시그널 집합의 주소 
+    ------------------------------------
+
+    how에 올 수 있는 값
+    SIG_BLOCK: set에 지정한 시그널 집합을 시그널 마스크에 추가함.
+    SIG_UNBLOCK: set에 지정한 시그널 집합을 시그널 마스크에서 제거한다.
+    SIG_SETMASK: set에 지정한 시그널 집합으로 현재 시그널 마스크를 대체한다.
+
+    ### 시그널 기다리기
+
+    pause(): 시그널 기다리기
+    ------------------------------------
+    #include <unistd.h>
+
+    int pause(void);
+    ------------------------------------
+    프로세스가 종료하거나 시그널 잡기 함수를 호출하는 시그널을 받을 때까지 프로세스를 대기시킨다.
+
+    sigpause(): 시그널 대기
+    ------------------------------------
+    #include <signal.h>
+
+    int sigpause(int sigmask); /* BSD */
+    int sigpause(int sig); /* System */
+
+    * sigmask: 블록을 해제하고 대기할 시그널을 지정한 시그널 마스크
+    * sig: 시그널이 올 때까지 대기할 시그널
+    ------------------------------------
+    인자로 지정한 시그널을 프로세스의 시그널 마스크에서 제거하고 프로세스가 시그널을 받을때까지 기다린다.
+
+    sigsuspend(): 시그널 기다리기
+    ------------------------------------
+    #include <signal.h>
+
+    int sigsuspend(const sigset_t *mask);
+
+    * mask: 기다리려는 시그널을 지정한 시그널 집합의 주소
+    ------------------------------------
+    인자로 지정한 시그널 집합에 설정된 시그널들로 프로세스의 시그널 마스크를 교체하고 블로킹되지 않은 시그널이 도착할 때까지 프로세스의 수행을 멈추고 기다린다.
+    시그널이 도착하면 프로세스의 시그널 마스크는 이전 설정으로 되돌아간다.
+
+    ### 기타 시그널 함수
+
+    sigsend(): 시그널 보내기
+    ------------------------------------
+    #include <signal.h>
+
+    int sigsend(idtype_t idtype, id_t id, int sig);
+
+    * idtype: id에 지정한 값의 종류
+    * id: 시그널을 받을 프로세스나 프로세스 그룹
+    * sig: 보내려는 시그널
+    ------------------------------------
+    sig로 지정한 시그널을 id에 지정한 프로세스나 프로세스 그룹에 보낸다. idtype은 id에 지정한 값의 의미를 알려준다.
+    sigsend() 함수가 kill() 함수와 다른 점은 특정 프로세스 뿐만 아니라 프로세스 그룹 등 시그널을 받을 대상을 다양하게 지정할 수 있다는 것이다.
+
+    sigsend() 함수의 인자로 사용할 수 있는 값
+    P_PID: PID가 id인 프로세스에 시그널을 보낸다.
+    P_PGID: 프로세스 그룹 ID가 id인 모든 프로세스에 시그널을 보낸다.
+    P_SID: 세션 ID가 id인 모든 프로세스에 시그널을 보낸다.
+    P_TASKID: 태스크 ID가 id인 모든 프로세스에 시그널을 보낸다.
+    P_UID: 유효 사용자 ID(euid)가 id인 모든 프로세스에 시그널을 보낸다.
+    P_GID: 유효 사용자 ID(egid)가 id인 모든 프로세스에 시그널을 보낸다.
+    P_PROJID: 프로젝트 ID가 id인 모든 프로세스에 시그널을 보낸다.
+    P_CID: 스케줄러 클래스 ID가 id인 모든 프로세스에 시그널을 보낸다.
+    P_CTID: 프로세스 콘트랙트 ID가 id인 모든 프로세스에 시그널을 보낸다.
+    P_ALL: id를 무시하고 모든 프로세스에 시그널을 보낸다.
+    P_MYID: 함수를 호출하는 자신에게 시그널을 보낸다.
+
+    PID가 0인 프로세스는 시그널을 보내는 대상에서 항상 제외된다.
+
+    sigignore(): 시그널 무시 처리
+    ------------------------------------
+    #include <signal.h>
+
+    int sigignore(int sig);
+
+    * sig: 무시할 시그널
+    ------------------------------------
+    인자로 지정한 시그널의 처리 방법을 SIG_IGN으로 설정함으로써 시그널을 무시하도록 한다.
