@@ -228,3 +228,110 @@ TCP/IP 프로토콜을 이용해 응용 프로그램을 작성할 때 TCP 계층
 
     호스트에서 사용하는 바이트 순서는 호스트 바이트 순서(HBO)라고 한다. 시스템에서 통신을 통해 데이터를 내보낼 때는
     HBO에서 NBO로 데이터 순서를 바꿔서 전송하고, 데이터를 받으면 NBO에서 HBO로 변환한 후 처리해야 한다.
+
+    --------------------------------------
+    #include <arpa/inet.h>
+
+    uint32_t htonl(uint32_t hostlong);
+    uint16_t htons(uint16_t hostshort);
+    uint32_t ntohl(unit32_t netlong);
+    unit16_t ntohs(uint16_t netshort);
+
+    * hostlong, hostshort: 호스트 바이트 순서로 저장된 값
+    * netlong, netshort: 네트워크 바이트 순서로 저장된 값
+    --------------------------------------
+    htonl() 함수는 32비트 HBO를 32비트 NBO로 변환한다. htons() 함수는 16비트 HBO를 16비트 NBO로 변환한다.
+    ntohl() 함수는 32비트 NBO를 32비트 HBO로 변환한다. ntohs() 함수는 16비트 NBO를 16비트 HBO로 변환한다.
+
+  ### IP 주소 변환 함수
+    IP주소는 점(.)으로 구분된다. 저장하는 방법은 두가진데, 시스템 내부적으로는 앞에서와 같은 형태의 주소를 이진값으로 바꿔서 저장한다.
+    시스템 외부적으로 사용할 때는 문자열로 사용한다. 그래서 이진값과 문자열로 표시되는 IP 주소를 서로 변환할 수 있는 함수를 제공함.
+
+    inet_addr(): 문자열 IP 주소를 숫자로 변환
+    --------------------------------------
+    #include <sys/socket.h>
+    #include <netinet.h>
+    #include <arpa/inet.h>
+
+    in_addr_t inet_addr(const char *cp);
+
+    * cp: 문자열 형태의 IP 주소
+    --------------------------------------
+    IP 주소를 문자열로 받아 이를 이진값으로 바꿔서 리턴한다. in_addr_t는 long형이다.
+
+    inet_ntoa(): 구조체 IP 주소를 문자열로 변환
+    --------------------------------------
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+
+    char *inet_ntoa(const struct in_addr in);
+
+    * in: in_addr 구조체 형태의 IP 주소
+    --------------------------------------
+    IP 주소를 in_addr 구조체 형태로 받아 점으로 구분된 문자열로 리턴한다.
+
+## 3. 소켓 인터페이스 함수
+
+  소켓은 특수 파일중 하나이다. 그래서 소켓을 이용하여 네트워크 프로그래밍을 할 때는 소켓을 생성해 IP 주소와 연결한 후 서버와 클라이언트가 연결되면 소켓을 통해 읽고 쓰면 된다. </br>
+  소켓을 이용해 데이터를 주고 받으려면 다양한 소켓 함수가 필요하며 이 함수들을 순서에 맞게 호출해야 한다.
+
+  ### 소켓 인터페이스 함수의 종류
+    socket(): 소켓 파일 기술자 생성
+    bind(): 소켓 파일 기술자를 지정된 IP 주소/포트 번호와 결합
+    listen(): 클라이언트의 연결 요청 대기
+    connect(): 클라이언트가 서버에 접속 요청
+    accept(): 클라이언트의 연결 요청 수락
+    send(): 데이터 송신(SOCK_STREAM)
+    recv(): 데이터 수신(SOCK_STREAM)
+    sendto(): 데이터 송신(SOCK_DGRAM)
+    recvfrom(): 데이터 수신(SOCK_DGRAM)
+    close(): 소켓 파일 기술자 종료
+
+    bind(), listen(), accept() 함수는 서버 측에서만 사용하고, connect() 함수는 클라이언트 측에서만 사용한다.
+    나머지 socket(), recv(), send(), recvfrom(), sendto(), close() 함수는 서버와 클라이언트에서 모두 사용한다.
+
+    socket(): 소켓 파일 기술자 생성
+    --------------------------------------
+    #include <sys/types.h>
+    #include <sys/socket.h>
+
+    int socket(int domain, int type, int protocol);
+
+    * domain: 소켓 종류(유닉스 도메인 또는 인터넷 소켓)
+    * type: 통신 방식(TCP 또는 UDP)
+    * protocol: 소켓에 이용할 프로토콜
+    --------------------------------------
+    socket() 함수는 domain에 지정한 소켓의 형식과 type에 지정한 통신 방식을 지원하는 소켓을 생성함.
+    protocol은 소켓에서 이용할 프로토콜로 보통은 0을 지정하고 시스템이 protocol 값을 결정함.
+    domain에는 도메인 또는 주소 패밀리를 지정함. 유닉스 도메인 소켓을 생성할 경우 AF_UNIX를 지정하고 인터넷 소켓을 생성할 경우 AF_INET을 지정함.
+    type에는 통신 방식에 따라 SOCK_STREAM이나 SOCK_DGRAM을 지정함.
+
+    bind(): 소켓 파일 기술자를 지정된 IP 주소/포트 번호와 결합
+    --------------------------------------
+    #include <sys/types.h>
+    #include <sys/socket.h>
+
+    int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+
+    * sockfd: socket() 함수가 생성한 소켓 기술자
+    * addr: 소켓의 이름을 표현하는 구조체
+    * addrlen: addr의 크기
+    --------------------------------------
+    socket() 함수로 생성한 소켓을 사용하려면 소켓을 특정 IP 및 포트 번호와 연결해야 한다.
+    bind() 함수는 socket() 함수가 생성한 소켓 기술자 sockfd에 sockaddr 구조체인 addr에 지정한 정보를 연결하는데, 이 작업을 '소켓에 이름을 할당하기'라고 부른다.
+    sockaddr 구조체에 지정하는 정보는 소켓의 종류, IP 주소, 포트 번호다. bind() 함수는 수행에 성공하면 0을, 실패하면 -1을 리턴한다.
+
+    listen(): 클라이언트의 연결 요청 대기
+    --------------------------------------
+    #include <sys/types.h>
+    #include <sys/socket.h>
+
+    int listen(int sockfd, int backlog);
+
+    * sockfd: socket 함수가 생성한 소켓 기술자
+    * backlog: 최대 허용 클라이언트 수
+    --------------------------------------
+    소켓 sockfd에서 클라이언트의 연결을 받을 준비를 마쳤음을 알린다.
+    접속이 가능한 클라이언트 수는 backlog에 지정함. listen() 함수는 소켓이 SOCK_STREAM 방식으로 통신할 때만 필요함.
+    
