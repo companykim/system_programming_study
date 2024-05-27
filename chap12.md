@@ -334,4 +334,113 @@ TCP/IP 프로토콜을 이용해 응용 프로그램을 작성할 때 TCP 계층
     --------------------------------------
     소켓 sockfd에서 클라이언트의 연결을 받을 준비를 마쳤음을 알린다.
     접속이 가능한 클라이언트 수는 backlog에 지정함. listen() 함수는 소켓이 SOCK_STREAM 방식으로 통신할 때만 필요함.
-    
+
+    connect(): 클라이언트가 서버에 접속 요청
+    --------------------------------------
+    #include <sys/types.h>
+    #include <sys/socket.h>
+
+    int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+
+    * sockfd: socket() 함수가 생성한 소켓 기술자
+    * addr: 접속하려는 서버의 IP 정보
+    * addrlen: addr의 크기
+    --------------------------------------
+    클라이언트가 서버에 연결을 요청할 때 사용함. 소켓 sockfd를 통해 addr에 지정한 서버에 연결을 요청하는데, 이는 SOCK_STREAM 방식으로 통신할 때만 필요하다.
+    첫번째 인자인 sockfd가 가리키는 소켓을 두번째 인자인 addr이 가리키는 주소로 연결한다.
+
+    accept(): 클라이언트의 연결 요청 수락
+    --------------------------------------
+    #include <sys/types.h>
+    #include <sys/socket.h>
+
+    int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+
+    * sockfd: socket() 함수가 생성한 소켓 기술자
+    * addr: 접속을 수락한 클라이언트의 IP 정보
+    * addrlen: addr 크기
+    --------------------------------------
+    클라이언트의 연결 요청을 수락함. 서버는 accept() 함수를 사용해 소켓 sockfd를 통해 요청한 클라이언트와의 연결을 수락한다. 이때 addr에 클라이언트의 주소가 저장된다.
+    addrlen에는 addr의 크기가 저장된다. 클라이언트의 연결 요청이 오면 새로운 소켓 기술자를 리턴한다. 서버는 이 새로운 소켓 기술자를 사용해 클라이언트와 데이터를 주고 받을 수 있다.
+    sockfd가 가리키는 소켓 기술자는 추가 연결 요청을 기다리는데 사용한다.
+
+    send(): 데이터 송신
+    --------------------------------------
+    #include <sys/types.h>
+    #include <sys/socket.h>
+
+    ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+
+    * sockfd: socket() 함수가 생성한 소켓 기술자
+    * len: 메시지 크기
+    * buf: 전송할 메시지를 저장한 메모리 주소
+    * flags: 데이터를 주고받는 방법을 지정한 플래그
+    --------------------------------------
+    소켓 sockfd를 통해 크기가 len인 메시지 buf를 flags에 지정한 방법으로 전송함. flags에는 데이터를 주고 받는 방법을 지정함.
+    flags에 지정할 수 있는 값
+    MSG_OOB: 영역 밖의 데이터로 처리한다. 이는 SOCK_STREAM에서만 사용할 수 있다. 영역 밖의 데이터란 중요한 메시지가 아니라는 의미다. 이 플래그를 설정한 메시지를 보내고 수신 확인을 받지 않아도 다른 메시지를 계속 전송한다.
+    MSG_DONTROUTE: 데이터의 라우팅 설정을 해제한다. 이 플래그는 진단 프로그램이나 라우팅 프로그램에서 사용한다.
+    send() 함수는 실제로 전송한 데이터의 바이트 수를 리턴한다. 리턴값이 지정한 크기보다 작으면 데이터를 모두 보내지 못했음을 의미한다.
+
+    recv(): 데이터 수신
+    --------------------------------------
+    #include <sys/types.h>
+    #include <sys/socket.h>
+
+    ssize_t recv(int sockfd, void *buf, size_t len, int flags);
+
+    * sockfd: socket() 함수가 생성한 소켓 기술자
+    * buf: 전송받은 메시지를 저장할 메모리 주소
+    * len: buf의 크기
+    * flags: 데이터를 주고받는 방법을 지정한 플래그
+    --------------------------------------
+    소켓 sockfd를 통해 전송받은 메시지를 크기가 len인 버퍼 buf에 저장한다.
+    마지막 인자인 flags는 send() 함수에서 사용하는 플래그와 같다.
+    recv() 함수는 실제로 수신한 데이터의 바이트 수를 리턴한다.
+
+    sendto(): 데이터 송신
+    --------------------------------------
+    #include <sys/types.h>
+    #include <sys/socket.h>
+
+    ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+                   const struct sockaddr *dest_addr, socklen_t addrlen);
+
+    * sockfd: socket() 함수가 생성한 소켓 기술자
+    * len: 메시지의 크기
+    * dest_addr: 메시지를 받을 호스트의 주소
+    * buf: 전송할 메시지를 저장한 메모리 주소
+    * flags: 데이터를 주고받는 방법을 지정한 플래그
+    * addrlen: dest_addr의 크기
+    --------------------------------------
+    UDP로 데이터를 전송한다. 따라서 목적지까지 미리 경로를 설정하지 않고 데이터를 전송한다.
+    데이터그램 기반 소켓(SOCK_DGRAM)으로 통신할 때는 listen()이나 accept() 함수를 호출하지 않는다.
+    첫번째 인자인 sockfd로 지정한 소켓을 통해 buf가 가리키는 데이터를 dest_addr이 가리키는 목적지의 주소로 전송한다.
+    send() 함수와 달리 매번 목적지 주소를 지정해야 한다. sendto() 함수는 실제로 전송한 데이터의 바이트 수를 리턴한다.
+
+    recvfrom(): 데이터 수신
+    --------------------------------------
+    #include <sys/types.h>
+    #include <sys/socket.h>
+
+    ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
+                    struct sockaddr *src_addr, socklen_t *addrlen);
+
+    * sockfd: socket() 함수가 생성한 소켓 기술자
+    * buf: 전송받은 메시지를 저장할 메모리 주소
+    * len: 메시지의 크기
+    * flags: 데이터를 주고받는 방법을 지정한 플래그
+    * src_addr: 메시지를 보내는 호스트의 주소
+    * addrlen: src_addr의 크기
+    --------------------------------------
+    UDP로 전달된 데이터를 수신하는데 사용한다. 따라서 어디에서 메시지를 보내온 것인지 주소 정보도 함께 전달받는다. 
+    다섯번째 인자인 src_addr에는 메시지를 발신한 시스템의 주소 정보가 저장된다.
+    recvffrom() 함수는 실제로 읽어온 데이터의 바이트 수를 리턴한다.
+
+  ### 소켓 인터페이스 함수의 호출 순서
+    서버 측에서는 socket() 함수로 먼저 소켓을 생성한 후 bind() 함수를 사용해 특정 포트와 연결한다.
+    그 후 클라이언트에서 오는 요청을 받을 준비를 마쳤다는 사실을 listen() 함수를 통해 운영체제에 알리고 요청이 들어오기를 기다린다.
+    클라이언트의 요청이 오묜 accept() 함수로 요청을 받고 send()와 recv() 함수를 통해 데이터를 주고받는다.
+
+    클라이언트의 경우 socket() 함수로 소켓을 만든 뒤 connect() 함수로 서버와 연결을 요청한다.
+    서버에서 연결 요청을 받아들이면 send()와 recv() 함수로 데이터를 주고받는다. 서버와 클라이언트 모두 close() 함수를 사용해 통신을 종료한다. 
